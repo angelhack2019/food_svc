@@ -63,7 +63,7 @@ var routes = Routes{
 	Route{
 		"ShareFood",
 		"POST",
-		"/food/{uuid}",
+		"/food",
 		shareFood,
 	},
 }

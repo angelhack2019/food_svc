@@ -7,17 +7,20 @@ import (
 	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
-var (
-	connectionString string
-	postgresDB       *sql.DB
+const (
+	connectionString = "host=localhost user=default password=default dbname=dough_you sslmode=disable port=5432"
+
+	errStrUnableToReachDB = "unable to connect to db"
 )
 
-func init() {
-	connectionString = "host=192.168.0.230 user=default password=default dbname=dough_you sslmode=disable port=5432"
-}
+var (
+	postgresDB *sql.DB
+)
 
 func refreshDBConnection() error {
 	if postgresDB == nil {
@@ -42,7 +45,6 @@ func Index(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFood(w http.ResponseWriter, r *http.Request) {
-
 	fmt.Fprintln(w, "Get Food")
 	//todos := Todos{
 	//	Todo{Name: "Write presentation"},
@@ -55,51 +57,65 @@ func getFood(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFoods(w http.ResponseWriter, r *http.Request) {
-	//http://localhost:8080/foods?tags=apple%2Cfruits&name=john
-	fmt.Fprintln(w, "Get Foods")
 	if err := refreshDBConnection(); err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, "Unable to connect to db")
+		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
+		return
 	}
-	tags := r.URL.Query().Get("tags")
-	fmt.Fprintln(w, tags)
-	name := r.URL.Query().Get("name")
-	fmt.Fprintln(w, name)
-}
+	tags := r.FormValue("tags")
 
-func shareFood(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Share Food")
-	if err := refreshDBConnection(); err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, "Unable to connect to db")
+	if strings.TrimSpace(tags) == "" {
+
 	}
-
-	expDate := r.URL.Query().Get("exp_date")
-	picURL := r.URL.Query().Get("pic_url")
 
 	command := `
-				INSERT INTO food_svc.dough_you.foods(
+				INSERT INTO dough_you.foods(
 					uuid, pic_url, exp_date, created_date 
 				) VALUES($1, $2, $3, $4)
 				`
-
-	_, err := postgresDB.Exec(command, uuid.New().String(), picURL, expDate, time.Now().UTC())
+	_, err := postgresDB.Exec(command, uuid.New().String(), picURL, time.Unix(int64(t), 0), time.Now().UTC())
 
 	if err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, "Unable to share food")
+		utility.RespondWithError(w, http.StatusInternalServerError, "unable to get food")
+		return
 	}
+	utility.Respond(w, http.StatusOK, "OK")
+}
 
+func shareFood(w http.ResponseWriter, r *http.Request) {
+	if err := refreshDBConnection(); err != nil {
+		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
+		return
+	}
+	picURL := r.FormValue("pic_url")
+	expDate := r.FormValue("exp_date")
+	t, err := strconv.Atoi(expDate)
+	if err != nil {
+		utility.RespondWithError(w, http.StatusInternalServerError, "wrong expiration date")
+		return
+	}
+	command := `
+				INSERT INTO dough_you.foods(
+					uuid, pic_url, exp_date, created_date 
+				) VALUES($1, $2, $3, $4)
+				`
+	_, err = postgresDB.Exec(command, uuid.New().String(), picURL, time.Unix(int64(t), 0), time.Now().UTC())
+	if err != nil {
+		utility.RespondWithError(w, http.StatusInternalServerError, "unable to share food")
+		return
+	}
 	utility.Respond(w, http.StatusOK, "OK")
 }
 
 func deleteFood(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Delete Food")
 	if err := refreshDBConnection(); err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, "Unable to connect to db")
+		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
+		return
 	}
 }
 
 func updateFood(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Update food")
 	if err := refreshDBConnection(); err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, "Unable to connect to db")
+		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
+		return
 	}
 }
