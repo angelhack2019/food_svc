@@ -2,10 +2,12 @@ package router
 
 import (
 	"database/sql"
+	"fmt"
 	"github.com/angelhack2019/lib/utility"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
+	"github.com/spf13/viper"
 	"net/http"
 	"strconv"
 	"strings"
@@ -13,15 +15,24 @@ import (
 )
 
 const (
-	connectionString = "host=localhost user=default password=default dbname=dough_you sslmode=disable port=5432"
-
 	errStrUnableToReachDB = "unable to connect to db"
 )
 
 var (
-	postgresDB *sql.DB
+	pg               string
+	connectionString string
+	postgresDB       *sql.DB
 )
 
+func init() {
+	viper.BindEnv("PG")
+	pg = viper.GetString("PG")
+	connectionString = fmt.Sprintf(
+		"host=%s user=default password=default dbname=dough_you sslmode=disable port=5432",
+		pg,
+	)
+
+}
 func refreshDBConnection() error {
 	if postgresDB == nil {
 		var err error
@@ -41,6 +52,7 @@ func refreshDBConnection() error {
 }
 
 func getFood(w http.ResponseWriter, r *http.Request) {
+	// curl http://localhost:8080/foods/12345
 	if err := refreshDBConnection(); err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
 		return
@@ -79,6 +91,8 @@ func getFood(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFoods(w http.ResponseWriter, r *http.Request) {
+	// curl http://localhost:8080/foods?tags=fruits,apple
+	// curl http://localhost:8080/foods
 	if err := refreshDBConnection(); err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
 		return
@@ -159,14 +173,26 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 }
 
 func shareFood(w http.ResponseWriter, r *http.Request) {
+	// curl \
+	//-F "exp_date=1563073799" \
+	//-F "tags=fruits,magic" \
+	//-F "image=@image.jpg" \
+	//http://localhost:8080/food
 	if err := refreshDBConnection(); err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
 		return
 	}
-	picURL := r.FormValue("pic_url")
+
+	foodUUID := uuid.New().String()
+
+	link, err := uploadFile(w, r, foodUUID)
+	if err != nil {
+		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	expDate := r.FormValue("exp_date")
 	tags := r.FormValue("tags")
-
 	t, err := strconv.Atoi(expDate)
 	if err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, "wrong expiration date")
@@ -179,13 +205,12 @@ func shareFood(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	foodUUID := uuid.New().String()
 	command := `
 				INSERT INTO dough_you.foods(
 					uuid, pic_url, exp_date, created_date 
 				) VALUES($1, $2, $3, $4)
 				`
-	_, err = postgresDB.Exec(command, foodUUID, picURL, time.Unix(int64(t), 0), time.Now().UTC())
+	_, err = postgresDB.Exec(command, foodUUID, link, time.Unix(int64(t), 0), time.Now().UTC())
 	if err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, "unable to insert food")
 		return
