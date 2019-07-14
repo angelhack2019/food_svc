@@ -101,7 +101,7 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 	tags := r.FormValue("tags")
 	userUUID := r.FormValue("user_uuid")
 
-	if strings.TrimSpace(tags) == "" {
+	if strings.TrimSpace(tags) == "" && strings.TrimSpace(userUUID) == "" {
 		command := `
 				SELECT uuid, pic_url, exp_date, created_date, user_uuid 
 				FROM dough_you.foods
