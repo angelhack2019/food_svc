@@ -185,7 +185,7 @@ func shareFood(w http.ResponseWriter, r *http.Request) {
 
 	foodUUID := uuid.New().String()
 
-	link, err := uploadFile(w, r, foodUUID)
+	link, rekogTags, err := uploadFile(w, r, foodUUID)
 	if err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -217,6 +217,9 @@ func shareFood(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tagsSlice := strings.Split(tags, ",")
+	if len(rekogTags) != 0 {
+		tagsSlice = append(tagsSlice, rekogTags...)
+	}
 	for _, tag := range tagsSlice {
 		command := `
 				INSERT INTO dough_you.tags(
