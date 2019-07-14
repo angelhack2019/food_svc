@@ -52,7 +52,7 @@ func refreshDBConnection() error {
 }
 
 func getFood(w http.ResponseWriter, r *http.Request) {
-	// curl http://localhost:8080/foods/12345
+	// curl http://localhost:8181/foods/12345
 	if err := refreshDBConnection(); err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
 		return
@@ -91,17 +91,19 @@ func getFood(w http.ResponseWriter, r *http.Request) {
 }
 
 func getFoods(w http.ResponseWriter, r *http.Request) {
-	// curl http://localhost:8080/foods?tags=fruits,apple
-	// curl http://localhost:8080/foods
+	// curl http://localhost:8181/foods?tags=fruits,apple
+	// curl http://localhost:8181/foods
+	// curl http://localhost:8181/foods?user_uuid=a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11
 	if err := refreshDBConnection(); err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
 		return
 	}
 	tags := r.FormValue("tags")
+	userUUID := r.FormValue("user_uuid")
 
 	if strings.TrimSpace(tags) == "" {
 		command := `
-				SELECT uuid, pic_url, exp_date, created_date 
+				SELECT uuid, pic_url, exp_date, created_date, user_uuid 
 				FROM dough_you.foods
 				`
 		row, err := postgresDB.Query(command)
@@ -111,31 +113,64 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 		}
 		foods := []map[string]string{}
 		for row.Next() {
-			var uuid, picUrl string
+			var foodUUID, picUrl, userUUID string
 			var expDate, createdDate time.Time
 
-			err := row.Scan(&uuid, &picUrl, &expDate, &createdDate)
+			err := row.Scan(&foodUUID, &picUrl, &expDate, &createdDate, &userUUID)
 			if err != nil {
 				utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan food with tag")
 				return
 			}
 			food := map[string]string{
-				"uuid":         uuid,
+				"uuid":         foodUUID,
 				"pic_url":      picUrl,
 				"exp_date":     expDate.String(),
 				"created_date": createdDate.String(),
+				"user_uuid":    userUUID,
+			}
+			foods = append(foods, food)
+		}
+		utility.RespondWithJSON(w, http.StatusOK, foods)
+		return
+	} else if strings.TrimSpace(userUUID) != "" {
+		command := `
+				SELECT uuid, pic_url, exp_date, created_date, user_uuid 
+				FROM dough_you.foods
+				WHERE user_uuid = $1
+				`
+		row, err := postgresDB.Query(command, userUUID)
+		if err != nil {
+			utility.RespondWithError(w, http.StatusInternalServerError, "unable to get all foods with tag")
+			return
+		}
+		foods := []map[string]string{}
+		for row.Next() {
+			var foodUUID, picUrl, userUUID string
+			var expDate, createdDate time.Time
+
+			err := row.Scan(&foodUUID, &picUrl, &expDate, &createdDate, &userUUID)
+			if err != nil {
+				utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan user food with tag")
+				return
+			}
+			food := map[string]string{
+				"uuid":         foodUUID,
+				"pic_url":      picUrl,
+				"exp_date":     expDate.String(),
+				"created_date": createdDate.String(),
+				"user_uuid":    userUUID,
 			}
 			foods = append(foods, food)
 		}
 		utility.RespondWithJSON(w, http.StatusOK, foods)
 		return
 	}
-
 	rows := []*sql.Rows{}
 	tagsSlice := strings.Split(tags, ",")
 	for _, tag := range tagsSlice {
 		command := `
-				SELECT uuid, pic_url, exp_date, created_date FROM dough_you.foods
+				SELECT uuid, pic_url, exp_date, created_date, user_uuid
+				FROM dough_you.foods
 				INNER JOIN dough_you.tags
 				ON dough_you.foods.uuid = dough_you.tags.food_uuid
 				WHERE dough_you.tags.name = $1
@@ -151,19 +186,20 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 	foods := []map[string]string{}
 	for _, row := range rows {
 		for row.Next() {
-			var uuid, picUrl string
+			var foodUUID, picUrl, userUUID string
 			var expDate, createdDate time.Time
 
-			err := row.Scan(&uuid, &picUrl, &expDate, &createdDate)
+			err := row.Scan(&foodUUID, &picUrl, &expDate, &createdDate, &userUUID)
 			if err != nil {
 				utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan food with tag")
 				return
 			}
 			food := map[string]string{
-				"uuid":         uuid,
+				"uuid":         foodUUID,
 				"pic_url":      picUrl,
 				"exp_date":     expDate.String(),
 				"created_date": createdDate.String(),
+				"user_uuid":    userUUID,
 			}
 			foods = append(foods, food)
 		}
@@ -173,11 +209,12 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 }
 
 func shareFood(w http.ResponseWriter, r *http.Request) {
-	// curl \
-	//-F "exp_date=1563073799" \
-	//-F "tags=fruits,magic" \
-	//-F "image=@image.jpg" \
-	//http://localhost:8080/food
+	//	curl \
+	//	-F "exp_date=1563073799" \
+	//	-F "tags=fruits,magic" \
+	//	-F "user_uuid=a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11" \
+	//	-F "image=@dede.jpeg" \
+	//http://localhost:8181/food
 	if err := refreshDBConnection(); err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
 		return
@@ -193,12 +230,12 @@ func shareFood(w http.ResponseWriter, r *http.Request) {
 
 	expDate := r.FormValue("exp_date")
 	tags := r.FormValue("tags")
+	userUUID := r.FormValue("user_uuid")
 	t, err := strconv.Atoi(expDate)
 	if err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, "wrong expiration date")
 		return
 	}
-	// TODO post to AWS S3
 
 	if strings.TrimSpace(tags) == "" {
 		utility.RespondWithError(w, http.StatusInternalServerError, "empty tags")
@@ -207,10 +244,10 @@ func shareFood(w http.ResponseWriter, r *http.Request) {
 
 	command := `
 				INSERT INTO dough_you.foods(
-					uuid, pic_url, exp_date, created_date 
-				) VALUES($1, $2, $3, $4)
+					uuid, pic_url, exp_date, created_date, user_uuid
+				) VALUES($1, $2, $3, $4, $5)
 				`
-	_, err = postgresDB.Exec(command, foodUUID, link, time.Unix(int64(t), 0), time.Now().UTC())
+	_, err = postgresDB.Exec(command, foodUUID, link, time.Unix(int64(t), 0), time.Now().UTC(), userUUID)
 	if err != nil {
 		utility.RespondWithError(w, http.StatusInternalServerError, "unable to insert food")
 		return
