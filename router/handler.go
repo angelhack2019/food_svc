@@ -2,9 +2,9 @@ package router
 
 import (
 	"database/sql"
-	"fmt"
 	"github.com/angelhack2019/lib/utility"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
 	"net/http"
 	"strconv"
@@ -40,20 +40,42 @@ func refreshDBConnection() error {
 	return nil
 }
 
-func Index(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Welcome!")
-}
-
 func getFood(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintln(w, "Get Food")
-	//todos := Todos{
-	//	Todo{Name: "Write presentation"},
-	//	Todo{Name: "Host meetup"},
-	//}
-	//
-	//if err := json.NewEncoder(w).Encode(todos); err != nil {
-	//	panic(err)
-	//}
+	if err := refreshDBConnection(); err != nil {
+		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
+		return
+	}
+
+	vars := mux.Vars(r)
+	foodUUID := vars["uuid"]
+	command := `
+				SELECT uuid, pic_url, exp_date, created_date 
+				FROM dough_you.foods
+				WHERE dough_you.foods.uuid = $1
+				`
+	row, err := postgresDB.Query(command, foodUUID)
+	if err != nil {
+		utility.RespondWithError(w, http.StatusInternalServerError, "unable to get a food with tag")
+		return
+	}
+	for row.Next() {
+		var uuid, picUrl string
+		var expDate, createdDate time.Time
+
+		err := row.Scan(&uuid, &picUrl, &expDate, &createdDate)
+		if err != nil {
+			utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan a food with tag")
+			return
+		}
+		food := map[string]string{
+			"uuid":         uuid,
+			"pic_url":      picUrl,
+			"exp_date":     expDate.String(),
+			"created_date": createdDate.String(),
+		}
+		utility.RespondWithJSON(w, http.StatusOK, food)
+	}
+	return
 }
 
 func getFoods(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +87,8 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 
 	if strings.TrimSpace(tags) == "" {
 		command := `
-				SELECT uuid, pic_url, exp_date, created_date FROM dough_you.foods
+				SELECT uuid, pic_url, exp_date, created_date 
+				FROM dough_you.foods
 				`
 		row, err := postgresDB.Query(command)
 		if err != nil {
@@ -183,18 +206,4 @@ func shareFood(w http.ResponseWriter, r *http.Request) {
 	}
 
 	utility.Respond(w, http.StatusOK, "OK")
-}
-
-func deleteFood(w http.ResponseWriter, r *http.Request) {
-	if err := refreshDBConnection(); err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
-		return
-	}
-}
-
-func updateFood(w http.ResponseWriter, r *http.Request) {
-	if err := refreshDBConnection(); err != nil {
-		utility.RespondWithError(w, http.StatusInternalServerError, errStrUnableToReachDB)
-		return
-	}
 }

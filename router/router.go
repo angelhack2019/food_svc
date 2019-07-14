@@ -31,12 +31,6 @@ func NewRouter() *mux.Router {
 
 var routes = Routes{
 	Route{
-		"Index",
-		"GET",
-		"/",
-		Index,
-	},
-	Route{
 		"GetFood",
 		"GET",
 		"/food/{uuid}",
@@ -47,18 +41,6 @@ var routes = Routes{
 		"GET",
 		"/foods",
 		getFoods,
-	},
-	Route{
-		"DeleteFood",
-		"DELETE",
-		"/food/{uuid}",
-		deleteFood,
-	},
-	Route{
-		"UpdateFood",
-		"PUT",
-		"/food/{uuid}",
-		updateFood,
 	},
 	Route{
 		"ShareFood",
