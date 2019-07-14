@@ -121,12 +121,35 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 				utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan food with tag")
 				return
 			}
+			command := `
+				SELECT name
+				FROM dough_you.tags
+				WHERE dough_you.tags.food_uuid  = $1
+				`
+			j, err := postgresDB.Query(command, foodUUID)
+			if err != nil {
+				utility.RespondWithError(w, http.StatusInternalServerError, "unable to get all foods with tag")
+				return
+			}
+
+			names := []string{}
+			for j.Next() {
+				var name string
+				err := j.Scan(&name)
+				if err != nil {
+					utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan food with tag")
+					return
+				}
+				names = append(names, name)
+			}
+
 			food := map[string]string{
 				"uuid":         foodUUID,
 				"pic_url":      picUrl,
 				"exp_date":     expDate.String(),
 				"created_date": createdDate.String(),
 				"user_uuid":    userUUID,
+				"tags":         strings.Join(names, " "),
 			}
 			foods = append(foods, food)
 		}
@@ -153,12 +176,35 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 				utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan user food with tag")
 				return
 			}
+			command := `
+				SELECT name
+				FROM dough_you.tags
+				WHERE dough_you.tags.food_uuid  = $1
+				`
+			j, err := postgresDB.Query(command, foodUUID)
+			if err != nil {
+				utility.RespondWithError(w, http.StatusInternalServerError, "unable to get all foods with tag")
+				return
+			}
+
+			names := []string{}
+			for j.Next() {
+				var name string
+				err := j.Scan(&name)
+				if err != nil {
+					utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan food with tag")
+					return
+				}
+				names = append(names, name)
+			}
+
 			food := map[string]string{
 				"uuid":         foodUUID,
 				"pic_url":      picUrl,
 				"exp_date":     expDate.String(),
 				"created_date": createdDate.String(),
 				"user_uuid":    userUUID,
+				"tags":         strings.Join(names, " "),
 			}
 			foods = append(foods, food)
 		}
@@ -194,12 +240,35 @@ func getFoods(w http.ResponseWriter, r *http.Request) {
 				utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan food with tag")
 				return
 			}
+			command := `
+				SELECT name
+				FROM dough_you.tags
+				WHERE dough_you.tags.food_uuid = $1
+				`
+			j, err := postgresDB.Query(command, foodUUID)
+			if err != nil {
+				utility.RespondWithError(w, http.StatusInternalServerError, "unable to get all foods with tag")
+				return
+			}
+
+			names := []string{}
+			for j.Next() {
+				var name string
+				err := j.Scan(&name)
+				if err != nil {
+					utility.RespondWithError(w, http.StatusInternalServerError, "unable to scan food with tag")
+					return
+				}
+				names = append(names, name)
+			}
+
 			food := map[string]string{
 				"uuid":         foodUUID,
 				"pic_url":      picUrl,
 				"exp_date":     expDate.String(),
 				"created_date": createdDate.String(),
 				"user_uuid":    userUUID,
+				"tags":         strings.Join(names, " "),
 			}
 			foods = append(foods, food)
 		}
@@ -256,6 +325,9 @@ func shareFood(w http.ResponseWriter, r *http.Request) {
 	tagsSlice := strings.Split(tags, ",")
 	if len(rekogTags) != 0 {
 		tagsSlice = append(tagsSlice, rekogTags...)
+	}
+	for i := 0; i < len(tagsSlice); i += 1 {
+		tagsSlice[i] = strings.ToLower(tagsSlice[i])
 	}
 	for _, tag := range tagsSlice {
 		command := `
